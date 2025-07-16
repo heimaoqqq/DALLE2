@@ -245,12 +245,22 @@ def main():
     
     print(f"📂 Output directory: {output_dir}")
     
+    # 设置设备
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"🔧 Using device: {device}")
+    if torch.cuda.is_available():
+        print(f"🔧 GPU count: {torch.cuda.device_count()}")
+        print(f"🔧 GPU name: {torch.cuda.get_device_name(0)}")
+
     # 初始化accelerator
     accelerator = Accelerator(mixed_precision='fp16')  # 使用混合精度节省内存
-    
+
     # 创建模型和数据加载器
     decoder = create_model(args)
     dataloader = create_dataloader(args)
+
+    # 移动模型到GPU
+    decoder = decoder.to(device)
     
     print(f"📊 Dataset size: {len(dataloader.dataset)} images")
     print(f"🔢 Batch size: {args.batch_size}")

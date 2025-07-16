@@ -221,7 +221,12 @@ class PriorTrainer:
         """单个训练步骤"""
         images = batch['image']
         user_ids = batch['user_id']
-        
+
+        # 确保数据在正确的设备上
+        device = next(self.model.parameters()).device
+        images = images.to(device)
+        user_ids = user_ids.to(device)
+
         # 从CLIP获取图像embeddings
         with torch.no_grad():
             image_embeds = self.model.clip.embed_image(images).image_embed
@@ -272,12 +277,22 @@ def main():
     
     print(f"📂 Output directory: {output_dir}")
     
+    # 设置设备
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"🔧 Using device: {device}")
+    if torch.cuda.is_available():
+        print(f"🔧 GPU count: {torch.cuda.device_count()}")
+        print(f"🔧 GPU name: {torch.cuda.get_device_name(0)}")
+
     # 初始化accelerator
     accelerator = Accelerator(mixed_precision='fp16')  # 使用混合精度节省内存
-    
+
     # 创建模型和数据加载器
     diffusion_prior = create_model(args)
     dataloader = create_dataloader(args)
+
+    # 移动模型到GPU
+    diffusion_prior = diffusion_prior.to(device)
     
     print(f"📊 Dataset size: {len(dataloader.dataset)} images")
     print(f"🔢 Batch size: {args.batch_size}")
