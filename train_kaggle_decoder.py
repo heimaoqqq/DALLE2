@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from accelerate import Accelerator, DistributedDataParallelKwargs
+from accelerate import Accelerator
 from tqdm import tqdm
 
 from dalle2_pytorch import Unet, Decoder, OpenClipAdapter
@@ -250,13 +250,10 @@ def main():
     print(f"🔧 Using device: {device}")
 
     if torch.cuda.is_available():
-        gpu_count = torch.cuda.device_count()
-        print(f"🔧 GPU count: {gpu_count}")
-        for i in range(gpu_count):
-            print(f"🔧 GPU {i}: {torch.cuda.get_device_name(i)}")
-            print(f"   Memory: {torch.cuda.get_device_properties(i).total_memory / 1e9:.1f} GB")
+        print(f"🔧 GPU: {torch.cuda.get_device_name(0)}")
+        print(f"🔧 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
 
-    # 简化的Accelerator配置 - 专注于稳定的单GPU训练
+    # Accelerator配置 - 单GPU + 混合精度
     accelerator = Accelerator(mixed_precision='fp16')
 
     # 创建模型和数据加载器
@@ -265,19 +262,6 @@ def main():
 
     # 移动模型到GPU
     decoder = decoder.to(device)
-
-    # 优化单GPU训练
-    if torch.cuda.device_count() > 1:
-        print(f"🔥 Detected {torch.cuda.device_count()} GPUs, using single GPU for stability")
-        # 可以适当增加批次大小利用更多GPU内存
-        if args.batch_size < 16:
-            original_batch_size = args.batch_size
-            args.batch_size = min(16, args.batch_size * 2)
-            print(f"🔧 Increased batch size from {original_batch_size} to {args.batch_size}")
-            # 重新创建数据加载器
-            dataloader = create_dataloader(args)
-    else:
-        print("⚠️  Using single GPU")
     
     print(f"📊 Dataset size: {len(dataloader.dataset)} images")
     print(f"🔢 Batch size: {args.batch_size}")
