@@ -63,8 +63,8 @@ def parse_args():
                         help='Number of training epochs (reduced for Kaggle)')
     parser.add_argument('--save_every', type=int, default=10,
                         help='Save model every N epochs')
-    parser.add_argument('--sample_every', type=int, default=5,
-                        help='Generate samples every N epochs')
+    parser.add_argument('--sample_every', type=int, default=1,
+                        help='Generate samples every N epochs (1=every epoch for early monitoring)')
     
     # EMA参数
     parser.add_argument('--ema_beta', type=float, default=0.99,
@@ -145,11 +145,10 @@ def create_model(args):
         print("🖼️  Using pixel-space diffusion")
         vae = NullVQGanVAE(channels=args.channels)
     
-    # 创建U-Net - 内存优化配置
+    # 创建U-Net - 正确的通道数配置
     if args.use_vqgan and not args.no_vqgan:
-        # VQ-GAN潜在空间通常使用较少的通道数
-        # 不直接使用encoded_dim，而是使用固定的小值
-        unet_channels = 4  # 标准的潜在空间通道数
+        # VQ-GAN的encoded_dim = dim * (2^layers) = 32 * (2^2) = 128
+        unet_channels = vae.encoded_dim  # 使用VQ-GAN的实际encoded_dim
         print(f"🔧 U-Net channels for VQ-GAN latent space: {unet_channels}")
     else:
         # 像素空间的通道数
