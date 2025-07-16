@@ -168,7 +168,8 @@ def test_models(num_users=31):
             depth=2,  # 减小深度用于测试
             dim_head=64,
             heads=4,
-            timesteps=100
+            timesteps=100,  # 这个参数用于时间embedding，不传给CausalTransformer
+            rotary_emb=True
         )
         
         # 测试前向传播
@@ -263,7 +264,8 @@ def test_training_compatibility(dataloader):
             depth=2,
             dim_head=32,
             heads=4,
-            timesteps=100
+            timesteps=100,
+            rotary_emb=True
         )
         
         diffusion_prior = UserConditionedDiffusionPrior(

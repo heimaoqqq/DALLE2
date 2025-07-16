@@ -78,10 +78,16 @@ class UserConditionedPriorNetwork(nn.Module):
         
         # Learned query and transformer
         self.learned_query = nn.Parameter(torch.randn(dim))
-        
+
         # Import CausalTransformer from the main module
         from dalle2_pytorch.dalle2_pytorch import CausalTransformer
-        self.causal_transformer = CausalTransformer(dim=dim, **kwargs)
+
+        # Filter out parameters that CausalTransformer doesn't accept
+        transformer_kwargs = {k: v for k, v in kwargs.items()
+                            if k in ['depth', 'dim_head', 'heads', 'ff_mult', 'norm_in', 'norm_out',
+                                   'attn_dropout', 'ff_dropout', 'final_proj', 'normformer', 'rotary_emb']}
+
+        self.causal_transformer = CausalTransformer(dim=dim, **transformer_kwargs)
         
         # Null embeddings for classifier-free guidance
         self.null_user_embeds = nn.Parameter(torch.randn(1, num_user_embeds, dim))
