@@ -69,8 +69,8 @@ def parse_args():
                         help='Number of training epochs (reduced for Kaggle)')
     parser.add_argument('--save_every', type=int, default=10,
                         help='Save model every N epochs')
-    parser.add_argument('--sample_every', type=int, default=1,
-                        help='Generate samples every N epochs (1=every epoch for early monitoring)')
+    parser.add_argument('--sample_every', type=int, default=5,
+                        help='Generate samples every N epochs')
     
     # EMA参数
     parser.add_argument('--ema_beta', type=float, default=0.99,
