@@ -145,21 +145,16 @@ def create_model(args):
         print("🖼️  Using pixel-space diffusion")
         vae = NullVQGanVAE(channels=args.channels)
     
-    # 创建U-Net - 正确的通道数配置
+    # 创建U-Net - 始终使用3通道，Decoder会自动调整
+    print(f"🔧 U-Net initial channels: {args.channels} (Decoder will auto-adjust for VQ-GAN)")
     if args.use_vqgan and not args.no_vqgan:
-        # VQ-GAN的encoded_dim = dim * (2^layers) = 32 * (2^2) = 128
-        unet_channels = vae.encoded_dim  # 使用VQ-GAN的实际encoded_dim
-        print(f"🔧 U-Net channels for VQ-GAN latent space: {unet_channels}")
-    else:
-        # 像素空间的通道数
-        unet_channels = args.channels
-        print(f"🔧 U-Net channels for pixel space: {unet_channels}")
+        print(f"🔧 VQ-GAN encoded_dim: {vae.encoded_dim} (will be used by Decoder)")
 
     unet = Unet(
         dim=args.dim,
         image_embed_dim=512,  # CLIP embedding dimension
         cond_dim=128,
-        channels=unet_channels,  # 使用优化的通道数
+        channels=args.channels,  # 始终使用3，Decoder会自动调整
         dim_mults=tuple(args.dim_mults),
         cond_on_image_embeds=True,
         cond_on_text_encodings=False,  # 不使用文本条件
