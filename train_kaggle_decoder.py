@@ -260,7 +260,13 @@ def main():
             # 设置环境变量强制使用所有GPU
             import os
             os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(str(i) for i in range(gpu_count))
+            os.environ['WORLD_SIZE'] = str(gpu_count)
+            os.environ['RANK'] = '0'
+            os.environ['LOCAL_RANK'] = '0'
+            os.environ['MASTER_ADDR'] = 'localhost'
+            os.environ['MASTER_PORT'] = '12355'
             print(f"🔧 CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES', 'Not set')}")
+            print(f"🔧 WORLD_SIZE: {os.environ.get('WORLD_SIZE', 'Not set')}")
         else:
             print("⚠️  Only 1 GPU detected")
 
@@ -287,8 +293,14 @@ def main():
     decoder = create_model(args)
     dataloader = create_dataloader(args)
 
-    # 移动模型到GPU
+    # 移动模型到GPU并设置多GPU
     decoder = decoder.to(device)
+
+    # 如果有多GPU且Accelerator未能使用，回退到DataParallel
+    if torch.cuda.device_count() > 1:
+        print(f"🔧 Attempting DataParallel with {torch.cuda.device_count()} GPUs as backup")
+        decoder = nn.DataParallel(decoder)
+        print(f"✅ DataParallel enabled")
     
     print(f"📊 Dataset size: {len(dataloader.dataset)} images")
     print(f"🔢 Batch size: {args.batch_size}")
