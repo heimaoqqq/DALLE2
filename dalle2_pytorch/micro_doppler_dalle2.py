@@ -236,7 +236,7 @@ class UserConditionedDiffusionPrior(DiffusionPrior):
         batch, device = image_embed.shape[0], image_embed.device
         
         # Sample random timesteps
-        times = torch.randint(0, self.noise_scheduler.timesteps, (batch,), device=device, dtype=torch.long)
+        times = torch.randint(0, self.noise_scheduler.num_timesteps, (batch,), device=device, dtype=torch.long)
         
         # Add noise to image embeddings
         noise = torch.randn_like(image_embed)
@@ -287,7 +287,7 @@ class UserConditionedDiffusionPrior(DiffusionPrior):
         Sample image embeddings conditioned on user IDs
         """
         timesteps = default(timesteps, self.sample_timesteps)
-        timesteps = default(timesteps, self.noise_scheduler.timesteps)
+        timesteps = default(timesteps, self.noise_scheduler.num_timesteps)
         
         if exists(user_ids):
             batch = user_ids.shape[0]
