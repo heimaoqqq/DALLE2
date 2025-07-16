@@ -15,6 +15,16 @@ import json
 import argparse
 from collections import defaultdict
 
+# 设置设备
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f"🔧 Test device: {device}")
+if torch.cuda.is_available():
+    print(f"🔧 GPU count: {torch.cuda.device_count()}")
+    print(f"🔧 GPU name: {torch.cuda.get_device_name(0)}")
+    print(f"🔧 GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+else:
+    print("⚠️  CUDA not available, using CPU")
+
 from dalle2_pytorch import Unet, Decoder, OpenClipAdapter
 from dalle2_pytorch.micro_doppler_dalle2 import (
     UserConditionedPriorNetwork, 
@@ -170,13 +180,13 @@ def test_models(num_users=31):
             heads=4,
             num_timesteps=1000,  # 标准扩散步数 (训练用1000步)
             rotary_emb=True
-        )
-        
+        ).to(device)  # 移动到GPU
+
         # 测试前向传播
         batch_size = 4
-        image_embed = torch.randn(batch_size, 512)
-        user_ids = torch.randint(0, num_users, (batch_size,))
-        timesteps = torch.randint(0, 1000, (batch_size,)).long()  # 匹配模型的timesteps范围
+        image_embed = torch.randn(batch_size, 512, device=device)  # 在GPU上创建
+        user_ids = torch.randint(0, num_users, (batch_size,), device=device)  # 在GPU上创建
+        timesteps = torch.randint(0, 1000, (batch_size,), device=device).long()  # 在GPU上创建
         
         pred = prior_network(image_embed, timesteps, user_ids=user_ids)
         print(f"✅ Prior network output shape: {pred.shape}")
@@ -191,10 +201,10 @@ def test_models(num_users=31):
             timesteps=1000,        # 训练时使用1000步
             sample_timesteps=64,   # 推理时使用64步 (DDIM加速)
             num_users=num_users
-        )
-        
+        ).to(device)  # 移动到GPU
+
         # 测试训练前向传播
-        images = torch.randn(batch_size, 3, 256, 256)
+        images = torch.randn(batch_size, 3, 256, 256, device=device)  # 在GPU上创建
         with torch.no_grad():
             image_embeds = clip.embed_image(images).image_embed
         
@@ -204,7 +214,7 @@ def test_models(num_users=31):
         # 测试采样
         with torch.no_grad():
             sampled_embeds = diffusion_prior.sample(
-                user_ids=user_ids[:2],
+                user_ids=user_ids[:2],  # 已经在GPU上
                 num_samples_per_batch=1,
                 cond_scale=1.0
             )
@@ -227,15 +237,15 @@ def test_models(num_users=31):
             clip=clip,
             image_sizes=(256,),
             timesteps=1000  # 标准扩散步数
-        )
-        
+        ).to(device)  # 移动到GPU
+
         # 测试解码器训练
-        decoder_loss = decoder(images)
+        decoder_loss = decoder(images)  # images已经在GPU上
         print(f"✅ Decoder training loss: {decoder_loss.item():.4f}")
-        
+
         # 测试解码器采样
         with torch.no_grad():
-            generated_images = decoder.sample(image_embed=sampled_embeds)
+            generated_images = decoder.sample(image_embed=sampled_embeds)  # sampled_embeds已经在GPU上
         print(f"✅ Generated images shape: {generated_images.shape}")
         
         print("🎉 All model tests passed!")
@@ -266,30 +276,30 @@ def test_training_compatibility(dataloader):
             heads=4,
             num_timesteps=1000,  # 标准扩散步数
             rotary_emb=True
-        )
-        
+        ).to(device)  # 移动到GPU
+
         diffusion_prior = UserConditionedDiffusionPrior(
             net=prior_network,
             clip=clip,
             timesteps=1000,      # 训练时使用1000步
             sample_timesteps=64, # 推理时使用64步
             num_users=31
-        )
+        ).to(device)  # 移动到GPU
         
         # 测试一个批次
         batch = next(iter(dataloader))
-        images = batch['image']
-        user_ids = batch['user_id']
-        
+        images = batch['image'].to(device)  # 移动到GPU
+        user_ids = batch['user_id'].to(device)  # 移动到GPU
+
         print(f"📊 Batch info:")
         print(f"   Images shape: {images.shape}")
         print(f"   User IDs: {user_ids}")
         print(f"   Unique users in batch: {torch.unique(user_ids).tolist()}")
-        
+
         # 测试先验训练步骤
         with torch.no_grad():
             image_embeds = diffusion_prior.clip.embed_image(images).image_embed
-        
+
         prior_loss = diffusion_prior(image_embeds, user_ids=user_ids)
         print(f"✅ Prior loss with real data: {prior_loss.item():.4f}")
         
