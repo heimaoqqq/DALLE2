@@ -334,19 +334,30 @@ class UserConditionedDiffusionPrior(DiffusionPrior):
                 cond_scale=cond_scale
             )
 
-            # Manual denoising step (similar to p_sample but with user conditioning)
-            model_mean, _, model_log_variance, x_start = self.p_mean_variance(
-                x=image_embed,
-                t=times,
-                text_cond=None,  # We don't use text conditioning
+            # Manual denoising step with user conditioning
+            # Get prediction from the network
+            pred = self.net.forward_with_cond_scale(
+                image_embed,
+                times,
+                user_ids=user_ids,
+                user_embeds=user_embeds,
                 self_cond=self_cond,
                 cond_scale=cond_scale
             )
 
+            # Predict x_start from noise prediction
+            if self.predict_x_start:
+                x_start = pred
+            else:
+                x_start = self.noise_scheduler.predict_start_from_noise(image_embed, t=times, noise=pred)
+
+            # Get model mean and variance
+            model_mean, posterior_variance, posterior_log_variance = self.noise_scheduler.q_posterior(x_start=x_start, x_t=image_embed, t=times)
+
+            # Add noise for non-final steps
             noise = torch.randn_like(image_embed)
-            # no noise when t == 0
             nonzero_mask = (1 - (times == 0).float()).reshape(batch, *((1,) * (len(image_embed.shape) - 1)))
-            image_embed = model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
+            image_embed = model_mean + nonzero_mask * (0.5 * posterior_log_variance).exp() * noise
         
         return image_embed
 
