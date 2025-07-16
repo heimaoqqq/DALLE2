@@ -37,8 +37,8 @@ def parse_args():
                         help='Image size (assumes square images)')
     
     # 模型参数
-    parser.add_argument('--dim', type=int, default=96,
-                        help='Base dimension for U-Net (reduced for memory efficiency)')
+    parser.add_argument('--dim', type=int, default=128,
+                        help='Base dimension for U-Net (standard configuration)')
     parser.add_argument('--dim_mults', type=int, nargs='+', default=[1, 2, 4, 8],
                         help='Dimension multipliers for U-Net layers')
     parser.add_argument('--channels', type=int, default=3,
@@ -129,17 +129,17 @@ def create_model(args):
     if args.use_vqgan and not args.no_vqgan:
         print("🎨 Using VQ-GAN VAE for latent diffusion (memory optimized)")
         vae = VQGanVAE(
-            dim=32,  # 保持较小维度节省内存
+            dim=32,  # 基础维度
             image_size=args.image_size,
             channels=args.channels,
-            layers=2,  # 减少层数
-            vq_codebook_dim=256,  # 适中的codebook维度
-            vq_codebook_size=512,  # 适中的codebook大小
-            vq_decay=0.99,  # 保守的衰减
-            vq_commitment_weight=0.25,  # 降低commitment权重
-            use_vgg_and_gan=False,  # 禁用VGG和GAN损失
-            discr_layers=1,  # 最小判别器层数
-            attn_resolutions=[],  # 禁用注意力
+            layers=3,  # 标准3层: 256->128->64->32, encoded_dim=128
+            vq_codebook_dim=256,  # VQ codebook维度
+            vq_codebook_size=1024,  # 增加codebook大小提高质量
+            vq_decay=0.8,  # 标准衰减率
+            vq_commitment_weight=1.0,  # 标准commitment权重
+            use_vgg_and_gan=False,  # 禁用VGG和GAN损失避免不稳定
+            discr_layers=2,  # 适中的判别器层数
+            attn_resolutions=[],  # 禁用注意力节省内存
         )
     else:
         print("🖼️  Using pixel-space diffusion")
@@ -158,11 +158,11 @@ def create_model(args):
         dim_mults=tuple(args.dim_mults),
         cond_on_image_embeds=True,
         cond_on_text_encodings=False,  # 不使用文本条件
-        self_attn=(args.dim >= 256),  # 只在更大维度时使用自注意力
-        attn_heads=4,  # 适中的注意力头数
-        attn_dim_head=32,  # 适中的注意力维度
-        cosine_sim_cross_attn=False,  # 禁用余弦相似度
-        cosine_sim_self_attn=False
+        self_attn=True,  # 启用自注意力
+        attn_heads=8,  # 标准注意力头数
+        attn_dim_head=64,  # 标准注意力维度
+        cosine_sim_cross_attn=True,  # 启用余弦相似度交叉注意力
+        cosine_sim_self_attn=True   # 启用余弦相似度自注意力
     )
     
     # 创建解码器 - 优化配置避免NaN
