@@ -245,9 +245,10 @@ def main():
     
     print(f"📂 Output directory: {output_dir}")
     
-    # 设置设备和多GPU
+    # 设置设备
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"🔧 Using device: {device}")
+
     if torch.cuda.is_available():
         gpu_count = torch.cuda.device_count()
         print(f"🔧 GPU count: {gpu_count}")
@@ -255,52 +256,26 @@ def main():
             print(f"🔧 GPU {i}: {torch.cuda.get_device_name(i)}")
             print(f"   Memory: {torch.cuda.get_device_properties(i).total_memory / 1e9:.1f} GB")
 
-        if gpu_count > 1:
-            print(f"🔥 Multi-GPU detected: {gpu_count} GPUs")
-            # 设置环境变量强制使用所有GPU
-            import os
-            os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(str(i) for i in range(gpu_count))
-            os.environ['WORLD_SIZE'] = str(gpu_count)
-            os.environ['RANK'] = '0'
-            os.environ['LOCAL_RANK'] = '0'
-            os.environ['MASTER_ADDR'] = 'localhost'
-            os.environ['MASTER_PORT'] = '12355'
-            print(f"🔧 CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES', 'Not set')}")
-            print(f"🔧 WORLD_SIZE: {os.environ.get('WORLD_SIZE', 'Not set')}")
-        else:
-            print("⚠️  Only 1 GPU detected")
-
-    # 初始化accelerator (强制多GPU配置)
-    try:
-        # 尝试使用新版本参数
-        accelerator = Accelerator(
-            mixed_precision='fp16',  # 使用混合精度节省内存
-            gradient_accumulation_steps=1,
-            split_batches=True,  # 在多GPU间分割批次
-            dispatch_batches=True,  # 优化多GPU批次分发
-            even_batches=False  # 允许不均匀批次
-        )
-    except TypeError:
-        # 回退到兼容版本
-        print("⚠️  Using compatible Accelerator configuration")
-        accelerator = Accelerator(
-            mixed_precision='fp16',  # 使用混合精度节省内存
-            gradient_accumulation_steps=1,
-            split_batches=True  # 在多GPU间分割批次
-        )
+    # 简单的Accelerator配置
+    accelerator = Accelerator(mixed_precision='fp16')
 
     # 创建模型和数据加载器
     decoder = create_model(args)
     dataloader = create_dataloader(args)
 
-    # 移动模型到GPU并设置多GPU
+    # 移动模型到GPU
     decoder = decoder.to(device)
 
-    # 如果有多GPU且Accelerator未能使用，回退到DataParallel
+    # 使用DataParallel进行多GPU训练
     if torch.cuda.device_count() > 1:
-        print(f"🔧 Attempting DataParallel with {torch.cuda.device_count()} GPUs as backup")
+        print(f"🔥 Using DataParallel with {torch.cuda.device_count()} GPUs")
         decoder = nn.DataParallel(decoder)
-        print(f"✅ DataParallel enabled")
+        # 调整批次大小以利用多GPU
+        if args.batch_size < torch.cuda.device_count() * 4:
+            args.batch_size = torch.cuda.device_count() * 8
+            print(f"🔧 Adjusted batch size to {args.batch_size} for multi-GPU")
+    else:
+        print("⚠️  Using single GPU")
     
     print(f"📊 Dataset size: {len(dataloader.dataset)} images")
     print(f"🔢 Batch size: {args.batch_size}")
