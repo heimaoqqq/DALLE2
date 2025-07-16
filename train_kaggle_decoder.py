@@ -196,31 +196,56 @@ def create_dataloader(args):
     return dataloader
 
 
-def save_samples(decoder_trainer, epoch, output_dir, num_samples=8):
+def save_samples(decoder_trainer, epoch, output_dir, dataloader, num_samples=8):
     """生成并保存样本图像"""
     print(f"🎨 Generating samples for epoch {epoch}...")
-    
-    # 创建随机图像embeddings用于采样
+
     device = next(decoder_trainer.decoder.parameters()).device
-    image_embeds = torch.randn(num_samples, 512, device=device)
-    
+
+    # 获取一批真实图像来生成CLIP embeddings
+    try:
+        batch = next(iter(dataloader))
+        real_images = batch['image'][:num_samples].to(device)
+
+        # 使用CLIP编码真实图像获得embeddings
+        with torch.no_grad():
+            clip = decoder_trainer.decoder.clip
+            image_embeds, _ = clip.embed_image(real_images)
+
+        print(f"🔧 Using real CLIP embeddings from {len(real_images)} images")
+
+    except Exception as e:
+        print(f"⚠️  Failed to get real embeddings: {e}")
+        print(f"🔧 Falling back to random embeddings")
+        # 回退到随机embeddings，但使用更合理的分布
+        image_embeds = torch.randn(num_samples, 512, device=device) * 0.1
+
     # 生成样本
     with torch.no_grad():
         samples = decoder_trainer.sample(image_embed=image_embeds)
-    
-    # 保存样本
+
+    # 保存样本和原图对比
     samples_dir = Path(output_dir) / 'samples'
     samples_dir.mkdir(exist_ok=True)
-    
+
+    # 保存生成的样本
     for i, sample in enumerate(samples):
         # 转换从[-1, 1]到[0, 1]
         sample = (sample + 1) / 2
         sample = torch.clamp(sample, 0, 1)
-        
+
         # 保存图像
         from torchvision.utils import save_image
-        save_image(sample, samples_dir / f'epoch_{epoch:03d}_sample_{i:02d}.png')
-    
+        save_image(sample, samples_dir / f'epoch_{epoch:03d}_generated_{i:02d}.png')
+
+    # 如果有真实图像，也保存原图作为对比
+    if 'real_images' in locals():
+        for i, real_img in enumerate(real_images):
+            real_img = (real_img + 1) / 2
+            real_img = torch.clamp(real_img, 0, 1)
+            from torchvision.utils import save_image
+            save_image(real_img, samples_dir / f'epoch_{epoch:03d}_original_{i:02d}.png')
+
     print(f"✅ Saved {len(samples)} samples to {samples_dir}")
 
 
@@ -322,7 +347,7 @@ def main():
         # 生成样本
         if (epoch + 1) % args.sample_every == 0:
             if accelerator.is_main_process:
-                save_samples(decoder_trainer, epoch + 1, output_dir)
+                save_samples(decoder_trainer, epoch + 1, output_dir, dataloader)
         
         # 保存模型
         if (epoch + 1) % args.save_every == 0:
