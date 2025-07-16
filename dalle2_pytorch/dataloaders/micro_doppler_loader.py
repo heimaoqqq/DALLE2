@@ -97,11 +97,11 @@ class MicroDopplerDataset(Dataset):
         samples = []
 
         for user_id in range(self.num_users):
-            # 支持多种命名格式: user_0, user_1, ... 或 ID1, ID2, ... 或 ID_1, ID_2, ...
+            # 支持多种命名格式: ID_1, ID_2, ... (主要格式) 或 user_0, user_1, ... 或 ID1, ID2, ... (备用格式)
             user_dir_formats = [
-                self.data_root / f"user_{user_id}",
-                self.data_root / f"ID{user_id + 1}",      # ID1 对应 user_id=0
-                self.data_root / f"ID_{user_id + 1}"      # ID_1 对应 user_id=0 (备用格式)
+                self.data_root / f"ID_{user_id + 1}",     # ID_1 对应 user_id=0 (主要格式)
+                self.data_root / f"user_{user_id}",       # user_0 对应 user_id=0 (备用格式)
+                self.data_root / f"ID{user_id + 1}"       # ID1 对应 user_id=0 (备用格式)
             ]
 
             user_dir = None

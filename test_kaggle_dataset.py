@@ -40,8 +40,8 @@ def analyze_kaggle_dataset(data_root='/kaggle/input/dataset'):
     image_extensions = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff']
     
     # 检查每个用户文件夹
-    for i in range(1, 32):  # ID1 to ID31
-        folder_name = f"ID{i}"
+    for i in range(1, 32):  # ID_1 to ID_31
+        folder_name = f"ID_{i}"
         folder_path = data_path / folder_name
         
         if folder_path.exists() and folder_path.is_dir():
@@ -76,7 +76,7 @@ def analyze_kaggle_dataset(data_root='/kaggle/input/dataset'):
     print(f"\n🖼️  Checking image properties...")
     sample_images = []
     for i in range(1, min(6, 32)):  # 检查前5个用户
-        folder_path = data_path / f"ID{i}"
+        folder_path = data_path / f"ID_{i}"
         if folder_path.exists():
             for ext in image_extensions:
                 files = list(folder_path.glob(f'*{ext}'))

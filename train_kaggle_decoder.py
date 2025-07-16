@@ -32,7 +32,7 @@ def parse_args():
 
     # 数据参数
     parser.add_argument('--num_users', type=int, default=31,
-                        help='Number of users (ID1 to ID31)')
+                        help='Number of users (ID_1 to ID_31)')
     parser.add_argument('--image_size', type=int, default=256,
                         help='Image size (assumes square images)')
     
@@ -102,15 +102,15 @@ def check_kaggle_environment():
     
     # 检查用户文件夹
     user_folders = []
-    for i in range(1, 32):  # ID1 to ID31
-        folder = data_path / f"ID{i}"
+    for i in range(1, 32):  # ID_1 to ID_31
+        folder = data_path / f"ID_{i}"
         if folder.exists():
             user_folders.append(folder)
             # 统计图像数量
             image_count = len(list(folder.glob('*.png'))) + len(list(folder.glob('*.jpg')))
-            print(f"✅ Found ID{i} with {image_count} images")
+            print(f"✅ Found ID_{i} with {image_count} images")
         else:
-            print(f"⚠️  Missing ID{i}")
+            print(f"⚠️  Missing ID_{i}")
     
     print(f"📊 Total user folders found: {len(user_folders)}/31")
     return len(user_folders) > 0
