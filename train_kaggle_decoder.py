@@ -125,48 +125,65 @@ def create_model(args):
     # 创建CLIP适配器
     clip = OpenClipAdapter(args.clip_model)
     
-    # 创建VAE - 优先使用像素空间避免NaN问题
-    if args.no_vqgan or not args.use_vqgan:
-        print("🖼️  Using pixel-space diffusion (more stable)")
-        vae = NullVQGanVAE(channels=args.channels)
-    else:
-        print("🎨 Using VQ-GAN VAE for latent diffusion (may cause NaN)")
+    # 创建VQ-GAN VAE - 使用更稳定的配置
+    if args.use_vqgan and not args.no_vqgan:
+        print("🎨 Using VQ-GAN VAE for latent diffusion (optimized for stability)")
         vae = VQGanVAE(
-            dim=32,
+            dim=64,  # 增加维度提高稳定性
             image_size=args.image_size,
             channels=args.channels,
-            layers=3,
-            vq_codebook_dim=256,
-            vq_codebook_size=1024,
-            vq_decay=0.8,
-            use_vgg_and_gan=True
+            layers=2,  # 减少层数避免梯度问题
+            vq_codebook_dim=512,  # 增加codebook维度
+            vq_codebook_size=512,  # 减少codebook大小
+            vq_decay=0.99,  # 更保守的衰减
+            vq_commitment_weight=0.25,  # 降低commitment权重
+            use_vgg_and_gan=False,  # 禁用VGG和GAN损失避免不稳定
+            discr_layers=2,  # 减少判别器层数
+            attn_resolutions=[],  # 禁用注意力避免复杂性
         )
+    else:
+        print("🖼️  Using pixel-space diffusion")
+        vae = NullVQGanVAE(channels=args.channels)
     
-    # 创建U-Net
+    # 创建U-Net - 根据是否使用VQ-GAN调整通道数
+    if args.use_vqgan and not args.no_vqgan:
+        # VQ-GAN潜在空间的通道数
+        unet_channels = vae.encoded_dim  # VQ-GAN编码后的通道数
+        print(f"🔧 U-Net channels for VQ-GAN latent space: {unet_channels}")
+    else:
+        # 像素空间的通道数
+        unet_channels = args.channels
+        print(f"🔧 U-Net channels for pixel space: {unet_channels}")
+
     unet = Unet(
         dim=args.dim,
         image_embed_dim=512,  # CLIP embedding dimension
         cond_dim=128,
-        channels=args.channels,
+        channels=unet_channels,  # 动态调整通道数
         dim_mults=tuple(args.dim_mults),
         cond_on_image_embeds=True,
         cond_on_text_encodings=False,  # 不使用文本条件
-        self_attn=True,
-        attn_heads=8,
-        attn_dim_head=64,
-        cosine_sim_cross_attn=True,
-        cosine_sim_self_attn=True
+        self_attn=(args.dim >= 128),  # 只在较大维度时使用自注意力
+        attn_heads=4,  # 减少注意力头数
+        attn_dim_head=32,  # 减少注意力维度
+        cosine_sim_cross_attn=False,  # 禁用余弦相似度避免数值问题
+        cosine_sim_self_attn=False
     )
     
-    # 创建解码器
+    # 创建解码器 - 优化配置避免NaN
     decoder = Decoder(
         unet=unet,
         clip=clip,
-        vae=vae if args.use_vqgan else None,
+        vae=vae if (args.use_vqgan and not args.no_vqgan) else None,
         image_sizes=(args.image_size,),
         timesteps=args.timesteps,
-        image_cond_drop_prob=0.1,
-        text_cond_drop_prob=0.5
+        sample_timesteps=50,  # 减少采样步数
+        image_cond_drop_prob=0.05,  # 降低dropout概率
+        text_cond_drop_prob=0.0,  # 不使用文本条件
+        beta_schedule='cosine',  # 使用余弦调度
+        predict_x_start=True,  # 预测x_start更稳定
+        predict_v=False,  # 不使用v-parameterization
+        learned_variance=False  # 固定方差避免学习不稳定
     )
     
     return decoder
