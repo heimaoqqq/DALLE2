@@ -168,7 +168,7 @@ def test_models(num_users=31):
             depth=2,  # 减小深度用于测试
             dim_head=64,
             heads=4,
-            num_timesteps=100,  # 正确的参数名，用于离散时间embedding
+            num_timesteps=1000,  # 标准扩散步数 (训练用1000步)
             rotary_emb=True
         )
         
@@ -176,7 +176,7 @@ def test_models(num_users=31):
         batch_size = 4
         image_embed = torch.randn(batch_size, 512)
         user_ids = torch.randint(0, num_users, (batch_size,))
-        timesteps = torch.randint(0, 100, (batch_size,)).long()  # 确保是long类型
+        timesteps = torch.randint(0, 1000, (batch_size,)).long()  # 匹配模型的timesteps范围
         
         pred = prior_network(image_embed, timesteps, user_ids=user_ids)
         print(f"✅ Prior network output shape: {pred.shape}")
@@ -188,8 +188,8 @@ def test_models(num_users=31):
         diffusion_prior = UserConditionedDiffusionPrior(
             net=prior_network,
             clip=clip,
-            timesteps=100,
-            sample_timesteps=10,
+            timesteps=1000,        # 训练时使用1000步
+            sample_timesteps=64,   # 推理时使用64步 (DDIM加速)
             num_users=num_users
         )
         
@@ -226,7 +226,7 @@ def test_models(num_users=31):
             unet=unet,
             clip=clip,
             image_sizes=(256,),
-            timesteps=100
+            timesteps=1000  # 标准扩散步数
         )
         
         # 测试解码器训练
@@ -264,15 +264,15 @@ def test_training_compatibility(dataloader):
             depth=2,
             dim_head=32,
             heads=4,
-            num_timesteps=100,  # 正确的参数名
+            num_timesteps=1000,  # 标准扩散步数
             rotary_emb=True
         )
         
         diffusion_prior = UserConditionedDiffusionPrior(
             net=prior_network,
             clip=clip,
-            timesteps=100,
-            sample_timesteps=10,
+            timesteps=1000,      # 训练时使用1000步
+            sample_timesteps=64, # 推理时使用64步
             num_users=31
         )
         
