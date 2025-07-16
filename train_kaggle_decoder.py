@@ -297,12 +297,13 @@ def main():
             # 训练步骤
             loss = decoder_trainer(images, unet_number=1)
             decoder_trainer.update(unet_number=1)
-            
-            epoch_loss += loss.item()
+
+            # loss已经是float，不需要.item()
+            epoch_loss += loss
             num_batches += 1
-            
+
             # 更新进度条
-            progress_bar.set_postfix({'loss': f'{loss.item():.4f}'})
+            progress_bar.set_postfix({'loss': f'{loss:.4f}'})
         
         avg_loss = epoch_loss / num_batches
         print(f'📊 Epoch {epoch+1}/{args.epochs}, Average Loss: {avg_loss:.4f}')
