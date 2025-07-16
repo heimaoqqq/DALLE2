@@ -256,14 +256,8 @@ def main():
             print(f"🔧 GPU {i}: {torch.cuda.get_device_name(i)}")
             print(f"   Memory: {torch.cuda.get_device_properties(i).total_memory / 1e9:.1f} GB")
 
-    # Accelerator配置 - 添加DDP参数处理未使用的参数
-    accelerator = Accelerator(
-        mixed_precision='fp16',
-        kwargs_handlers=[
-            # 处理分布式训练中未使用的参数
-            DistributedDataParallelKwargs(find_unused_parameters=True)
-        ]
-    )
+    # 简化的Accelerator配置 - 专注于稳定的单GPU训练
+    accelerator = Accelerator(mixed_precision='fp16')
 
     # 创建模型和数据加载器
     decoder = create_model(args)
@@ -272,14 +266,14 @@ def main():
     # 移动模型到GPU
     decoder = decoder.to(device)
 
-    # 多GPU检测 (让Accelerator处理多GPU)
+    # 优化单GPU训练
     if torch.cuda.device_count() > 1:
-        print(f"🔥 Multi-GPU detected: {torch.cuda.device_count()} GPUs (will use Accelerator)")
-        # 调整批次大小以利用多GPU
-        if args.batch_size < torch.cuda.device_count() * 4:
+        print(f"🔥 Detected {torch.cuda.device_count()} GPUs, using single GPU for stability")
+        # 可以适当增加批次大小利用更多GPU内存
+        if args.batch_size < 16:
             original_batch_size = args.batch_size
-            args.batch_size = torch.cuda.device_count() * 8
-            print(f"🔧 Adjusted batch size from {original_batch_size} to {args.batch_size} for multi-GPU")
+            args.batch_size = min(16, args.batch_size * 2)
+            print(f"🔧 Increased batch size from {original_batch_size} to {args.batch_size}")
             # 重新创建数据加载器
             dataloader = create_dataloader(args)
     else:
@@ -328,13 +322,8 @@ def main():
             # 训练步骤
             loss = decoder_trainer(images, unet_number=1)
 
-            # 处理分布式训练中的update调用
-            if hasattr(decoder_trainer, 'module'):
-                # 分布式训练：访问原始trainer
-                decoder_trainer.module.update(unet_number=1)
-            else:
-                # 单GPU训练：直接调用
-                decoder_trainer.update(unet_number=1)
+            # 单GPU训练：直接调用update
+            decoder_trainer.update(unet_number=1)
 
             # loss已经是float，不需要.item()
             epoch_loss += loss

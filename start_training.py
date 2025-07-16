@@ -93,19 +93,11 @@ def main():
     # 合并参数
     final_args = default_args + remaining_args
     
-    # 尝试多GPU启动
+    # 对于DALLE2这样的复杂模型，直接使用单GPU更稳定
     if gpu_count > 1:
-        print(f"🔥 Attempting multi-GPU training with {gpu_count} GPUs")
-        try:
-            result = run_with_accelerate_launch(script_name, final_args)
-            if result.returncode == 0:
-                print("✅ Multi-GPU training completed successfully!")
-                return 0
-            else:
-                print("⚠️  Multi-GPU training failed, falling back to single GPU")
-        except Exception as e:
-            print(f"⚠️  accelerate launch failed: {e}")
-            print("⚠️  Falling back to single GPU")
+        print(f"🔥 Detected {gpu_count} GPUs, but using single GPU for stability")
+        print("💡 DALLE2's complex architecture works better with single GPU training")
+        print("⚡ You can still benefit from larger batch sizes and mixed precision")
     
     # 回退到单GPU
     print("🔧 Running with single GPU")
