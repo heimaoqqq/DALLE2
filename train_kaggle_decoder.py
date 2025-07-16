@@ -245,15 +245,33 @@ def main():
     
     print(f"📂 Output directory: {output_dir}")
     
-    # 设置设备
+    # 设置设备和多GPU
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"🔧 Using device: {device}")
     if torch.cuda.is_available():
-        print(f"🔧 GPU count: {torch.cuda.device_count()}")
-        print(f"🔧 GPU name: {torch.cuda.get_device_name(0)}")
+        gpu_count = torch.cuda.device_count()
+        print(f"🔧 GPU count: {gpu_count}")
+        for i in range(gpu_count):
+            print(f"🔧 GPU {i}: {torch.cuda.get_device_name(i)}")
+            print(f"   Memory: {torch.cuda.get_device_properties(i).total_memory / 1e9:.1f} GB")
 
-    # 初始化accelerator
-    accelerator = Accelerator(mixed_precision='fp16')  # 使用混合精度节省内存
+        if gpu_count > 1:
+            print(f"🔥 Multi-GPU detected: {gpu_count} GPUs")
+            # 设置环境变量强制使用所有GPU
+            import os
+            os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(str(i) for i in range(gpu_count))
+            print(f"🔧 CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES', 'Not set')}")
+        else:
+            print("⚠️  Only 1 GPU detected")
+
+    # 初始化accelerator (强制多GPU配置)
+    accelerator = Accelerator(
+        mixed_precision='fp16',  # 使用混合精度节省内存
+        gradient_accumulation_steps=1,
+        split_batches=True,  # 在多GPU间分割批次
+        dispatch_batches=True,  # 优化多GPU批次分发
+        even_batches=False  # 允许不均匀批次
+    )
 
     # 创建模型和数据加载器
     decoder = create_model(args)
@@ -279,8 +297,16 @@ def main():
     
     # 准备分布式训练
     decoder_trainer, dataloader = accelerator.prepare(decoder_trainer, dataloader)
-    
+
+    # 显示训练配置
     print(f"🚀 Starting training for {args.epochs} epochs")
+    print(f"🔧 Accelerator device: {accelerator.device}")
+    print(f"🔧 Number of processes: {accelerator.num_processes}")
+    print(f"🔧 Distributed type: {accelerator.distributed_type}")
+    if accelerator.num_processes > 1:
+        print(f"🔥 Multi-GPU training enabled with {accelerator.num_processes} GPUs!")
+    else:
+        print(f"⚠️  Single GPU training (check if multi-GPU is available)")
     
     # 训练循环
     for epoch in range(args.epochs):
