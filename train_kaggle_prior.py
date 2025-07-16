@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from accelerate import Accelerator
+from accelerate import Accelerator, DistributedDataParallelKwargs
 from tqdm import tqdm
 
 from dalle2_pytorch import OpenClipAdapter
@@ -288,8 +288,14 @@ def main():
             print(f"🔧 GPU {i}: {torch.cuda.get_device_name(i)}")
             print(f"   Memory: {torch.cuda.get_device_properties(i).total_memory / 1e9:.1f} GB")
 
-    # 简单的Accelerator配置
-    accelerator = Accelerator(mixed_precision='fp16')
+    # Accelerator配置 - 添加DDP参数处理未使用的参数
+    accelerator = Accelerator(
+        mixed_precision='fp16',
+        kwargs_handlers=[
+            # 处理分布式训练中未使用的参数
+            DistributedDataParallelKwargs(find_unused_parameters=True)
+        ]
+    )
 
     # 创建模型和数据加载器
     diffusion_prior = create_model(args)
