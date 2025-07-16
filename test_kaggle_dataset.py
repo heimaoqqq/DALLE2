@@ -22,8 +22,19 @@ if torch.cuda.is_available():
     print(f"🔧 GPU count: {torch.cuda.device_count()}")
     print(f"🔧 GPU name: {torch.cuda.get_device_name(0)}")
     print(f"🔧 GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+    # 设置内存优化
+    torch.backends.cudnn.benchmark = True
+    torch.backends.cuda.matmul.allow_tf32 = True
+    print("🔧 GPU optimizations enabled")
 else:
     print("⚠️  CUDA not available, using CPU")
+
+def print_gpu_memory():
+    """打印GPU内存使用情况"""
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / 1e9
+        reserved = torch.cuda.memory_reserved() / 1e9
+        print(f"📊 GPU Memory - Allocated: {allocated:.1f}GB, Reserved: {reserved:.1f}GB")
 
 from dalle2_pytorch import Unet, Decoder, OpenClipAdapter
 from dalle2_pytorch.micro_doppler_dalle2 import (
@@ -190,7 +201,8 @@ def test_models(num_users=31):
         
         pred = prior_network(image_embed, timesteps, user_ids=user_ids)
         print(f"✅ Prior network output shape: {pred.shape}")
-        
+        print_gpu_memory()
+
         # 测试UserConditionedDiffusionPrior
         print("🏗️  Creating UserConditionedDiffusionPrior...")
         clip = OpenClipAdapter('ViT-B/32')
@@ -219,33 +231,43 @@ def test_models(num_users=31):
                 cond_scale=1.0
             )
         print(f"✅ Sampled embeddings shape: {sampled_embeds.shape}")
-        
-        # 测试Decoder
+
+        # 清理GPU内存
+        torch.cuda.empty_cache()
+        print(f"🧹 GPU memory cleared")
+
+        # 测试Decoder (极小配置用于内存测试)
         print("🏗️  Creating Decoder...")
         unet = Unet(
-            dim=64,  # 减小维度用于测试
+            dim=32,  # 极小维度用于测试
             image_embed_dim=512,
-            cond_dim=128,
+            cond_dim=64,  # 减小条件维度
             channels=3,
-            dim_mults=(1, 2, 4),
+            dim_mults=(1, 2),  # 减少层数
             cond_on_image_embeds=True,
-            cond_on_text_encodings=False
+            cond_on_text_encodings=False,
+            memory_efficient=True  # 启用内存优化
         )
         
         decoder = Decoder(
             unet=unet,
             clip=clip,
-            image_sizes=(256,),
-            timesteps=1000  # 标准扩散步数
+            image_sizes=(64,),  # 使用更小的图像尺寸进行测试
+            timesteps=100,  # 减少timesteps用于测试
+            sample_timesteps=10  # 极少的采样步数
         ).to(device)  # 移动到GPU
 
+        # 使用更小的测试图像
+        small_images = torch.randn(2, 3, 64, 64, device=device)  # 64x64而不是256x256
+
         # 测试解码器训练
-        decoder_loss = decoder(images)  # images已经在GPU上
+        decoder_loss = decoder(small_images)
         print(f"✅ Decoder training loss: {decoder_loss.item():.4f}")
 
-        # 测试解码器采样
+        # 测试解码器采样 (使用更小的embedding)
         with torch.no_grad():
-            generated_images = decoder.sample(image_embed=sampled_embeds)  # sampled_embeds已经在GPU上
+            small_embeds = sampled_embeds[:1]  # 只用1个样本
+            generated_images = decoder.sample(image_embed=small_embeds, batch_size=1)
         print(f"✅ Generated images shape: {generated_images.shape}")
         
         print("🎉 All model tests passed!")
