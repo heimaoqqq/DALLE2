@@ -46,14 +46,16 @@ def parse_args():
     parser.add_argument('--timesteps', type=int, default=1000,
                         help='Number of diffusion timesteps')
     parser.add_argument('--use_vqgan', action='store_true',
-                        help='Use VQ-GAN VAE for latent diffusion')
+                        help='Use VQ-GAN VAE for latent diffusion (may cause NaN issues)')
+    parser.add_argument('--no_vqgan', action='store_true',
+                        help='Force disable VQ-GAN (use pixel-space diffusion)')
     
     # 训练参数
     parser.add_argument('--batch_size', type=int, default=8,
                         help='Batch size (Kaggle GPU memory limited)')
     parser.add_argument('--num_workers', type=int, default=2,
                         help='Number of data loader workers')
-    parser.add_argument('--lr', type=float, default=3e-4,
+    parser.add_argument('--lr', type=float, default=1e-4,
                         help='Learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-2,
                         help='Weight decay')
@@ -123,9 +125,12 @@ def create_model(args):
     # 创建CLIP适配器
     clip = OpenClipAdapter(args.clip_model)
     
-    # 创建VQ-GAN VAE (如果指定)
-    if args.use_vqgan:
-        print("🎨 Using VQ-GAN VAE for latent diffusion")
+    # 创建VAE - 优先使用像素空间避免NaN问题
+    if args.no_vqgan or not args.use_vqgan:
+        print("🖼️  Using pixel-space diffusion (more stable)")
+        vae = NullVQGanVAE(channels=args.channels)
+    else:
+        print("🎨 Using VQ-GAN VAE for latent diffusion (may cause NaN)")
         vae = VQGanVAE(
             dim=32,
             image_size=args.image_size,
@@ -136,9 +141,6 @@ def create_model(args):
             vq_decay=0.8,
             use_vgg_and_gan=True
         )
-    else:
-        print("🖼️  Using pixel-space diffusion")
-        vae = NullVQGanVAE(channels=args.channels)
     
     # 创建U-Net
     unet = Unet(
@@ -293,8 +295,8 @@ def main():
         print(f"🔧 GPU: {torch.cuda.get_device_name(0)}")
         print(f"🔧 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
 
-    # Accelerator配置 - 单GPU + 混合精度
-    accelerator = Accelerator(mixed_precision='fp16')
+    # Accelerator配置 - 禁用混合精度避免NaN问题
+    accelerator = Accelerator(mixed_precision='no')
 
     # 创建模型和数据加载器
     decoder = create_model(args)
@@ -307,7 +309,7 @@ def main():
     print(f"🔢 Batch size: {args.batch_size}")
     print(f"📈 Total batches per epoch: {len(dataloader)}")
     
-    # 创建训练器
+    # 创建训练器 - 添加梯度裁剪防止NaN
     decoder_trainer = DecoderTrainer(
         decoder=decoder,
         lr=args.lr,
@@ -315,6 +317,7 @@ def main():
         ema_beta=args.ema_beta,
         ema_update_after_step=args.ema_update_after_step,
         ema_update_every=args.ema_update_every,
+        max_grad_norm=1.0,  # 强制梯度裁剪
         accelerator=accelerator
     )
     
@@ -345,6 +348,11 @@ def main():
             
             # 训练步骤
             loss = decoder_trainer(images, unet_number=1)
+
+            # 检查NaN
+            if torch.isnan(torch.tensor(loss)):
+                print(f"❌ NaN loss detected at batch {num_batches}! Skipping...")
+                continue
 
             # 单GPU训练：直接调用update
             decoder_trainer.update(unet_number=1)
