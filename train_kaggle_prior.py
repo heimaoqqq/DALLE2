@@ -298,14 +298,16 @@ def main():
     # 移动模型到GPU
     diffusion_prior = diffusion_prior.to(device)
 
-    # 使用DataParallel进行多GPU训练
+    # 多GPU检测 (让Accelerator处理多GPU)
     if torch.cuda.device_count() > 1:
-        print(f"🔥 Using DataParallel with {torch.cuda.device_count()} GPUs")
-        diffusion_prior = nn.DataParallel(diffusion_prior)
+        print(f"🔥 Multi-GPU detected: {torch.cuda.device_count()} GPUs (will use Accelerator)")
         # 调整批次大小以利用多GPU
         if args.batch_size < torch.cuda.device_count() * 8:
+            original_batch_size = args.batch_size
             args.batch_size = torch.cuda.device_count() * 16
-            print(f"🔧 Adjusted batch size to {args.batch_size} for multi-GPU")
+            print(f"🔧 Adjusted batch size from {original_batch_size} to {args.batch_size} for multi-GPU")
+            # 重新创建数据加载器
+            dataloader = create_dataloader(args)
     else:
         print("⚠️  Using single GPU")
     
