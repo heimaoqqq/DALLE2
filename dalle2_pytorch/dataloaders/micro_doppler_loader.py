@@ -151,7 +151,8 @@ class MicroDopplerDataset(Dataset):
                 samples.append({
                     'image_path': str(image_path),
                     'user_id': item['user_id'],
-                    'filename': item['filename']
+                    'filename': item['filename'],
+                    'original_folder': item.get('original_folder', 'N/A')
                 })
             else:
                 print(f"Warning: Image {image_path} not found, skipping...")
@@ -182,7 +183,8 @@ class MicroDopplerDataset(Dataset):
         return {
             'image': image,
             'user_id': user_id,
-            'filename': sample['filename']
+            'filename': sample['filename'],
+            'original_folder': sample.get('original_folder', 'N/A')
         }
     
     def get_user_distribution(self) -> dict:

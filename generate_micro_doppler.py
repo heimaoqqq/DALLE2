@@ -61,7 +61,7 @@ def load_trained_models(decoder_path, prior_path, num_users=31):
         depth=prior_args.get('depth', 6),
         dim_head=prior_args.get('dim_head', 64),
         heads=prior_args.get('heads', 8),
-        timesteps=prior_args.get('timesteps', 1000)
+        num_timesteps=prior_args.get('timesteps', 1000)  # 正确的参数名
     )
     
     diffusion_prior = UserConditionedDiffusionPrior(

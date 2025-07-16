@@ -134,7 +134,7 @@ def create_model(args):
         depth=args.depth,
         dim_head=args.dim_head,
         heads=args.heads,
-        timesteps=args.timesteps,
+        num_timesteps=args.timesteps,  # 正确的参数名
         rotary_emb=True,
         cosine_sim=True
     )
