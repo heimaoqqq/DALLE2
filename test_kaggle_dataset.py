@@ -291,11 +291,11 @@ def test_training_compatibility(dataloader):
         clip = OpenClipAdapter('ViT-B/32')
         
         prior_network = UserConditionedPriorNetwork(
-            dim=256,  # 减小维度
+            dim=512,  # 匹配CLIP embedding维度
             num_users=31,
-            user_embed_dim=32,
+            user_embed_dim=64,  # 增加用户embedding维度
             depth=2,
-            dim_head=32,
+            dim_head=64,  # 匹配主测试
             heads=4,
             num_timesteps=1000,  # 标准扩散步数
             rotary_emb=True
