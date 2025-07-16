@@ -51,14 +51,16 @@ def parse_args():
                         help='Force disable VQ-GAN (use pixel-space diffusion)')
     parser.add_argument('--vq_codebook_size', type=int, default=512,
                         help='VQ-GAN codebook size (256/512/1024 for micro-Doppler data)')
+    parser.add_argument('--aggressive_learning', action='store_true',
+                        help='Use aggressive learning settings for faster convergence')
     
     # 训练参数
     parser.add_argument('--batch_size', type=int, default=8,
                         help='Batch size (Kaggle GPU memory limited)')
     parser.add_argument('--num_workers', type=int, default=2,
                         help='Number of data loader workers')
-    parser.add_argument('--lr', type=float, default=1e-4,
-                        help='Learning rate')
+    parser.add_argument('--lr', type=float, default=3e-4,
+                        help='Learning rate (increased for faster learning)')
     parser.add_argument('--weight_decay', type=float, default=1e-2,
                         help='Weight decay')
     parser.add_argument('--epochs', type=int, default=50,
@@ -167,19 +169,31 @@ def create_model(args):
         cosine_sim_self_attn=True   # 启用余弦相似度自注意力
     )
     
-    # 创建解码器 - 优化配置避免NaN
+    # 创建解码器 - 根据学习模式调整配置
+    if args.aggressive_learning:
+        print("🚀 Using aggressive learning settings")
+        sample_timesteps = 10  # 极少采样步数
+        image_cond_drop_prob = 0.2  # 更高dropout强化条件学习
+        beta_schedule = 'linear'  # 线性调度更激进
+        predict_v = True  # 使用v-parameterization加速学习
+    else:
+        sample_timesteps = 20
+        image_cond_drop_prob = 0.1
+        beta_schedule = 'cosine'
+        predict_v = False
+
     decoder = Decoder(
         unet=unet,
         clip=clip,
         vae=vae if (args.use_vqgan and not args.no_vqgan) else None,
         image_sizes=(args.image_size,),
         timesteps=args.timesteps,
-        sample_timesteps=50,  # 减少采样步数
-        image_cond_drop_prob=0.05,  # 降低dropout概率
+        sample_timesteps=sample_timesteps,
+        image_cond_drop_prob=image_cond_drop_prob,
         text_cond_drop_prob=0.0,  # 不使用文本条件
-        beta_schedule='cosine',  # 使用余弦调度
+        beta_schedule=beta_schedule,
         predict_x_start=True,  # 预测x_start更稳定
-        predict_v=False,  # 不使用v-parameterization
+        predict_v=predict_v,
         learned_variance=False  # 固定方差避免学习不稳定
     )
     
