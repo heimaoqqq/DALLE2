@@ -50,10 +50,15 @@ class UserConditionedPriorNetwork(nn.Module):
         # User embedding layer - 使用较小的embedding维度然后投影
         self.user_embedding = nn.Embedding(num_users, user_embed_dim)
         self.user_proj = nn.Linear(user_embed_dim, dim)
-        self.to_user_embeds = nn.Sequential(
-            nn.Linear(dim, dim * num_user_embeds) if num_user_embeds > 1 else nn.Identity(),
-            Rearrange('b (n d) -> b n d', n = num_user_embeds)
-        )
+
+        # User embeddings processing
+        if num_user_embeds > 1:
+            self.to_user_embeds = nn.Sequential(
+                nn.Linear(dim, dim * num_user_embeds),
+                Rearrange('b n (m d) -> b n m d', m = num_user_embeds)
+            )
+        else:
+            self.to_user_embeds = nn.Identity()
         
         # Time embeddings
         self.continuous_embedded_time = not exists(num_timesteps)
@@ -128,11 +133,13 @@ class UserConditionedPriorNetwork(nn.Module):
             user_embeds = self.user_proj(user_embeds)     # [batch, dim]
             user_embeds = user_embeds.unsqueeze(1)        # [batch, 1, dim]
         elif exists(user_embeds):
-            pass  # Use provided user embeddings
+            # Ensure user_embeds has the right shape [batch, 1, dim]
+            if user_embeds.dim() == 2:
+                user_embeds = user_embeds.unsqueeze(1)
         else:
             # Use null user embeddings
             user_embeds = repeat(self.null_user_embeds, '1 n d -> b n d', b=batch)
-            
+
         # Apply conditioning dropout for classifier-free guidance
         if cond_drop_prob > 0:
             keep_mask = torch.rand(batch, device=device) > cond_drop_prob
@@ -142,8 +149,8 @@ class UserConditionedPriorNetwork(nn.Module):
                 user_embeds,
                 null_user_embeds
             )
-        
-        # Process embeddings
+
+        # Process embeddings - user_embeds is already [batch, 1, dim] or [batch, num_user_embeds, dim]
         user_embeds = self.to_user_embeds(user_embeds)
         time_embeds = self.to_time_embeds(diffusion_timesteps)
         image_embeds = self.to_image_embeds(image_embed)
