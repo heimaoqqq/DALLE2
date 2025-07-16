@@ -321,7 +321,14 @@ def main():
             
             # 训练步骤
             loss = decoder_trainer(images, unet_number=1)
-            decoder_trainer.update(unet_number=1)
+
+            # 处理分布式训练中的update调用
+            if hasattr(decoder_trainer, 'module'):
+                # 分布式训练：访问原始trainer
+                decoder_trainer.module.update(unet_number=1)
+            else:
+                # 单GPU训练：直接调用
+                decoder_trainer.update(unet_number=1)
 
             # loss已经是float，不需要.item()
             epoch_loss += loss
