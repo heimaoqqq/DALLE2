@@ -37,8 +37,8 @@ def parse_args():
                         help='Image size (assumes square images)')
     
     # 模型参数
-    parser.add_argument('--dim', type=int, default=128,
-                        help='Base dimension for U-Net')
+    parser.add_argument('--dim', type=int, default=96,
+                        help='Base dimension for U-Net (reduced for memory efficiency)')
     parser.add_argument('--dim_mults', type=int, nargs='+', default=[1, 2, 4, 8],
                         help='Dimension multipliers for U-Net layers')
     parser.add_argument('--channels', type=int, default=3,
@@ -125,30 +125,31 @@ def create_model(args):
     # 创建CLIP适配器
     clip = OpenClipAdapter(args.clip_model)
     
-    # 创建VQ-GAN VAE - 使用更稳定的配置
+    # 创建VQ-GAN VAE - 内存优化配置
     if args.use_vqgan and not args.no_vqgan:
-        print("🎨 Using VQ-GAN VAE for latent diffusion (optimized for stability)")
+        print("🎨 Using VQ-GAN VAE for latent diffusion (memory optimized)")
         vae = VQGanVAE(
-            dim=64,  # 增加维度提高稳定性
+            dim=32,  # 保持较小维度节省内存
             image_size=args.image_size,
             channels=args.channels,
-            layers=2,  # 减少层数避免梯度问题
-            vq_codebook_dim=512,  # 增加codebook维度
-            vq_codebook_size=512,  # 减少codebook大小
-            vq_decay=0.99,  # 更保守的衰减
+            layers=2,  # 减少层数
+            vq_codebook_dim=256,  # 适中的codebook维度
+            vq_codebook_size=512,  # 适中的codebook大小
+            vq_decay=0.99,  # 保守的衰减
             vq_commitment_weight=0.25,  # 降低commitment权重
-            use_vgg_and_gan=False,  # 禁用VGG和GAN损失避免不稳定
-            discr_layers=2,  # 减少判别器层数
-            attn_resolutions=[],  # 禁用注意力避免复杂性
+            use_vgg_and_gan=False,  # 禁用VGG和GAN损失
+            discr_layers=1,  # 最小判别器层数
+            attn_resolutions=[],  # 禁用注意力
         )
     else:
         print("🖼️  Using pixel-space diffusion")
         vae = NullVQGanVAE(channels=args.channels)
     
-    # 创建U-Net - 根据是否使用VQ-GAN调整通道数
+    # 创建U-Net - 内存优化配置
     if args.use_vqgan and not args.no_vqgan:
-        # VQ-GAN潜在空间的通道数
-        unet_channels = vae.encoded_dim  # VQ-GAN编码后的通道数
+        # VQ-GAN潜在空间通常使用较少的通道数
+        # 不直接使用encoded_dim，而是使用固定的小值
+        unet_channels = 4  # 标准的潜在空间通道数
         print(f"🔧 U-Net channels for VQ-GAN latent space: {unet_channels}")
     else:
         # 像素空间的通道数
@@ -159,14 +160,14 @@ def create_model(args):
         dim=args.dim,
         image_embed_dim=512,  # CLIP embedding dimension
         cond_dim=128,
-        channels=unet_channels,  # 动态调整通道数
+        channels=unet_channels,  # 使用优化的通道数
         dim_mults=tuple(args.dim_mults),
         cond_on_image_embeds=True,
         cond_on_text_encodings=False,  # 不使用文本条件
-        self_attn=(args.dim >= 128),  # 只在较大维度时使用自注意力
-        attn_heads=4,  # 减少注意力头数
-        attn_dim_head=32,  # 减少注意力维度
-        cosine_sim_cross_attn=False,  # 禁用余弦相似度避免数值问题
+        self_attn=(args.dim >= 256),  # 只在更大维度时使用自注意力
+        attn_heads=4,  # 适中的注意力头数
+        attn_dim_head=32,  # 适中的注意力维度
+        cosine_sim_cross_attn=False,  # 禁用余弦相似度
         cosine_sim_self_attn=False
     )
     
