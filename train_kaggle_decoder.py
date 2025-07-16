@@ -172,12 +172,12 @@ def create_model(args):
     # 创建解码器 - 根据学习模式调整配置
     if args.aggressive_learning:
         print("🚀 Using aggressive learning settings")
-        sample_timesteps = 10  # 极少采样步数
+        sample_timesteps = 64  # DDIM加速采样
         image_cond_drop_prob = 0.2  # 更高dropout强化条件学习
         beta_schedule = 'linear'  # 线性调度更激进
         predict_v = True  # 使用v-parameterization加速学习
     else:
-        sample_timesteps = 20
+        sample_timesteps = 64  # 标准DDIM采样步数
         image_cond_drop_prob = 0.1
         beta_schedule = 'cosine'
         predict_v = False
