@@ -222,7 +222,17 @@ def save_samples(decoder_trainer, epoch, output_dir, dataloader, num_samples=8):
 
     # 生成样本
     with torch.no_grad():
-        samples = decoder_trainer.sample(image_embed=image_embeds)
+        print(f"🔧 Image embeds shape: {image_embeds.shape}")
+        print(f"🔧 Image embeds range: [{image_embeds.min().item():.3f}, {image_embeds.max().item():.3f}]")
+
+        # 在早期训练时使用非EMA模型
+        use_non_ema = epoch <= 10  # 前10个epoch使用非EMA模型
+        print(f"🔧 Using {'non-EMA' if use_non_ema else 'EMA'} model for sampling")
+
+        samples = decoder_trainer.sample(image_embed=image_embeds, use_non_ema=use_non_ema)
+
+        print(f"🔧 Generated samples shape: {samples.shape}")
+        print(f"🔧 Generated samples range: [{samples.min().item():.3f}, {samples.max().item():.3f}]")
 
     # 保存样本和原图对比
     samples_dir = Path(output_dir) / 'samples'
@@ -230,9 +240,14 @@ def save_samples(decoder_trainer, epoch, output_dir, dataloader, num_samples=8):
 
     # 保存生成的样本
     for i, sample in enumerate(samples):
+        # 检查原始样本值
+        print(f"🔧 Sample {i} raw range: [{sample.min().item():.3f}, {sample.max().item():.3f}]")
+
         # 转换从[-1, 1]到[0, 1]
         sample = (sample + 1) / 2
         sample = torch.clamp(sample, 0, 1)
+
+        print(f"🔧 Sample {i} after normalization: [{sample.min().item():.3f}, {sample.max().item():.3f}]")
 
         # 保存图像
         from torchvision.utils import save_image
