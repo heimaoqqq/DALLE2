@@ -152,7 +152,15 @@ class UserConditionedPriorNetwork(nn.Module):
 
         # Process embeddings - user_embeds is already [batch, 1, dim] or [batch, num_user_embeds, dim]
         user_embeds = self.to_user_embeds(user_embeds)
-        time_embeds = self.to_time_embeds(diffusion_timesteps)
+
+        # Ensure timesteps are float for SinusoidalPosEmb
+        if not self.continuous_embedded_time:
+            # For discrete timesteps (embedding lookup)
+            time_embeds = self.to_time_embeds(diffusion_timesteps)
+        else:
+            # For continuous timesteps (sinusoidal embedding)
+            time_embeds = self.to_time_embeds(diffusion_timesteps.float())
+
         image_embeds = self.to_image_embeds(image_embed)
         
         # Self conditioning

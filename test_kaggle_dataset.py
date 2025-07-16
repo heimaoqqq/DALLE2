@@ -168,7 +168,7 @@ def test_models(num_users=31):
             depth=2,  # 减小深度用于测试
             dim_head=64,
             heads=4,
-            timesteps=100,  # 这个参数用于时间embedding，不传给CausalTransformer
+            num_timesteps=100,  # 正确的参数名，用于离散时间embedding
             rotary_emb=True
         )
         
@@ -176,7 +176,7 @@ def test_models(num_users=31):
         batch_size = 4
         image_embed = torch.randn(batch_size, 512)
         user_ids = torch.randint(0, num_users, (batch_size,))
-        timesteps = torch.randint(0, 100, (batch_size,))
+        timesteps = torch.randint(0, 100, (batch_size,)).long()  # 确保是long类型
         
         pred = prior_network(image_embed, timesteps, user_ids=user_ids)
         print(f"✅ Prior network output shape: {pred.shape}")
@@ -264,7 +264,7 @@ def test_training_compatibility(dataloader):
             depth=2,
             dim_head=32,
             heads=4,
-            timesteps=100,
+            num_timesteps=100,  # 正确的参数名
             rotary_emb=True
         )
         
