@@ -46,9 +46,11 @@ def parse_args():
     parser.add_argument('--timesteps', type=int, default=1000,
                         help='Number of diffusion timesteps')
     parser.add_argument('--use_vqgan', action='store_true',
-                        help='Use VQ-GAN VAE for latent diffusion (may cause NaN issues)')
+                        help='Use VQ-GAN VAE for latent diffusion')
     parser.add_argument('--no_vqgan', action='store_true',
                         help='Force disable VQ-GAN (use pixel-space diffusion)')
+    parser.add_argument('--vq_codebook_size', type=int, default=512,
+                        help='VQ-GAN codebook size (256/512/1024 for micro-Doppler data)')
     
     # 训练参数
     parser.add_argument('--batch_size', type=int, default=8,
@@ -134,7 +136,7 @@ def create_model(args):
             channels=args.channels,
             layers=3,  # 标准3层: 256->128->64->32, encoded_dim=128
             vq_codebook_dim=256,  # VQ codebook维度
-            vq_codebook_size=1024,  # 增加codebook大小提高质量
+            vq_codebook_size=args.vq_codebook_size,  # 可配置的codebook大小
             vq_decay=0.8,  # 标准衰减率
             vq_commitment_weight=1.0,  # 标准commitment权重
             use_vgg_and_gan=False,  # 禁用VGG和GAN损失避免不稳定
