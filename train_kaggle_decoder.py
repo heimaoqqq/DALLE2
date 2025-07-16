@@ -265,13 +265,23 @@ def main():
             print("⚠️  Only 1 GPU detected")
 
     # 初始化accelerator (强制多GPU配置)
-    accelerator = Accelerator(
-        mixed_precision='fp16',  # 使用混合精度节省内存
-        gradient_accumulation_steps=1,
-        split_batches=True,  # 在多GPU间分割批次
-        dispatch_batches=True,  # 优化多GPU批次分发
-        even_batches=False  # 允许不均匀批次
-    )
+    try:
+        # 尝试使用新版本参数
+        accelerator = Accelerator(
+            mixed_precision='fp16',  # 使用混合精度节省内存
+            gradient_accumulation_steps=1,
+            split_batches=True,  # 在多GPU间分割批次
+            dispatch_batches=True,  # 优化多GPU批次分发
+            even_batches=False  # 允许不均匀批次
+        )
+    except TypeError:
+        # 回退到兼容版本
+        print("⚠️  Using compatible Accelerator configuration")
+        accelerator = Accelerator(
+            mixed_precision='fp16',  # 使用混合精度节省内存
+            gradient_accumulation_steps=1,
+            split_batches=True  # 在多GPU间分割批次
+        )
 
     # 创建模型和数据加载器
     decoder = create_model(args)
