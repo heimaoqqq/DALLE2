@@ -53,6 +53,8 @@ def parse_args():
                         help='VQ-GAN codebook size (256/512/1024 for micro-Doppler data)')
     parser.add_argument('--aggressive_learning', action='store_true',
                         help='Use aggressive learning settings for faster convergence')
+    parser.add_argument('--sample_timesteps', type=int, default=None,
+                        help='Number of sampling steps (default: 250 normal, 100 aggressive)')
     
     # 训练参数
     parser.add_argument('--batch_size', type=int, default=8,
@@ -172,15 +174,19 @@ def create_model(args):
     # 创建解码器 - 根据学习模式调整配置
     if args.aggressive_learning:
         print("🚀 Using aggressive learning settings")
-        sample_timesteps = 64  # DDIM加速采样
+        default_sample_timesteps = 100  # 较多步数确保质量
         image_cond_drop_prob = 0.2  # 更高dropout强化条件学习
         beta_schedule = 'linear'  # 线性调度更激进
         predict_v = True  # 使用v-parameterization加速学习
     else:
-        sample_timesteps = 64  # 标准DDIM采样步数
+        default_sample_timesteps = 250  # 更多步数获得更好的采样质量
         image_cond_drop_prob = 0.1
         beta_schedule = 'cosine'
         predict_v = False
+
+    # 使用用户指定的采样步数，或默认值
+    sample_timesteps = args.sample_timesteps if args.sample_timesteps is not None else default_sample_timesteps
+    print(f"🔧 Using {sample_timesteps} sampling steps (training with {args.timesteps} steps)")
 
     decoder = Decoder(
         unet=unet,
