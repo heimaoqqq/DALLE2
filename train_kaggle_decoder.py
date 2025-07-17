@@ -33,8 +33,8 @@ def parse_args():
     # 数据参数
     parser.add_argument('--num_users', type=int, default=31,
                         help='Number of users (ID_1 to ID_31)')
-    parser.add_argument('--image_size', type=int, default=128,
-                        help='Image size (reduced to 128 for memory efficiency)')
+    parser.add_argument('--image_size', type=int, default=224,
+                        help='Image size (minimum 224 for CLIP compatibility)')
     
     # 模型参数
     parser.add_argument('--dim', type=int, default=64,
@@ -135,7 +135,7 @@ def create_model(args):
         print("🔧 Using ultra-low memory configuration")
         args.dim = 32
         args.dim_mults = [1, 2]
-        args.image_size = 64
+        args.image_size = 224  # CLIP最小要求
         args.batch_size = 1
 
     # 创建CLIP适配器
