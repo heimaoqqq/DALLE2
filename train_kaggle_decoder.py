@@ -33,14 +33,14 @@ def parse_args():
     # 数据参数
     parser.add_argument('--num_users', type=int, default=31,
                         help='Number of users (ID_1 to ID_31)')
-    parser.add_argument('--image_size', type=int, default=256,
-                        help='Image size (assumes square images)')
+    parser.add_argument('--image_size', type=int, default=128,
+                        help='Image size (reduced to 128 for memory efficiency)')
     
     # 模型参数
-    parser.add_argument('--dim', type=int, default=128,
-                        help='Base dimension for U-Net (standard configuration)')
-    parser.add_argument('--dim_mults', type=int, nargs='+', default=[1, 2, 4, 8],
-                        help='Dimension multipliers for U-Net layers')
+    parser.add_argument('--dim', type=int, default=64,
+                        help='Base dimension for U-Net (reduced for memory efficiency)')
+    parser.add_argument('--dim_mults', type=int, nargs='+', default=[1, 2, 4],
+                        help='Dimension multipliers for U-Net layers (reduced for memory)')
     parser.add_argument('--channels', type=int, default=3,
                         help='Number of image channels')
     parser.add_argument('--timesteps', type=int, default=1000,
@@ -55,6 +55,8 @@ def parse_args():
                         help='Use aggressive learning settings for faster convergence')
     parser.add_argument('--sample_timesteps', type=int, default=None,
                         help='Number of sampling steps (default: 250 normal, 100 aggressive)')
+    parser.add_argument('--low_memory', action='store_true',
+                        help='Use ultra-low memory configuration for debugging')
     
     # 训练参数
     parser.add_argument('--batch_size', type=int, default=8,
@@ -127,7 +129,15 @@ def check_kaggle_environment():
 def create_model(args):
     """创建解码器模型"""
     print("🏗️  Creating decoder model...")
-    
+
+    # 低内存模式配置
+    if args.low_memory:
+        print("🔧 Using ultra-low memory configuration")
+        args.dim = 32
+        args.dim_mults = [1, 2]
+        args.image_size = 64
+        args.batch_size = 1
+
     # 创建CLIP适配器
     clip = OpenClipAdapter(args.clip_model)
     
