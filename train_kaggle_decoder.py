@@ -147,6 +147,8 @@ def create_model(args):
             discr_layers=2,  # 适中的判别器层数
             attn_resolutions=[],  # 禁用注意力节省内存
         )
+        print(f"🔧 VQ-GAN encoded_dim: {vae.encoded_dim}")
+        print(f"🔧 VQ-GAN codebook_size: {args.vq_codebook_size}")
     else:
         print("🖼️  Using pixel-space diffusion")
         vae = NullVQGanVAE(channels=args.channels)
@@ -260,6 +262,12 @@ def save_samples(decoder_trainer, epoch, output_dir, dataloader, num_samples=8):
     with torch.no_grad():
         print(f"🔧 Image embeds shape: {image_embeds.shape}")
         print(f"🔧 Image embeds range: [{image_embeds.min().item():.3f}, {image_embeds.max().item():.3f}]")
+        print(f"🔧 Image embeds std: {image_embeds.std().item():.3f}")
+        print(f"🔧 Image embeds mean: {image_embeds.mean().item():.3f}")
+
+        # 检查原始图像
+        print(f"🔧 Original images shape: {images.shape}")
+        print(f"🔧 Original images range: [{images.min().item():.3f}, {images.max().item():.3f}]")
 
         # 在早期训练时使用非EMA模型
         use_non_ema = epoch <= 10  # 前10个epoch使用非EMA模型
