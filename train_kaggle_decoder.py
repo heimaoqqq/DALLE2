@@ -132,7 +132,6 @@ def create_model(args):
     clip = OpenClipAdapter(args.clip_model)
     
     # 创建VQ-GAN VAE - 内存优化配置
-    vae = None  # 默认为None
     if args.use_vqgan and not args.no_vqgan:
         print("🎨 Using VQ-GAN VAE for latent diffusion (memory optimized)")
         vae = VQGanVAE(
@@ -152,7 +151,8 @@ def create_model(args):
         print(f"🔧 VQ-GAN codebook_size: {args.vq_codebook_size}")
     else:
         print("🖼️  Using pixel-space diffusion")
-        # vae保持为None，用于像素空间扩散
+        # 对于像素空间，使用NullVQGanVAE（Decoder会自动处理）
+        vae = NullVQGanVAE(channels=args.channels)
     
     # 创建U-Net - 始终使用3通道，Decoder会自动调整
     print(f"🔧 U-Net initial channels: {args.channels} (Decoder will auto-adjust for VQ-GAN)")
@@ -191,16 +191,14 @@ def create_model(args):
     sample_timesteps = args.sample_timesteps if args.sample_timesteps is not None else default_sample_timesteps
     print(f"🔧 Using {sample_timesteps} sampling steps (training with {args.timesteps} steps)")
 
-    # 决定是否使用VAE
-    use_vae = args.use_vqgan and not args.no_vqgan
-    decoder_vae = vae if use_vae else None
-
-    print(f"🔧 Decoder VAE: {'VQ-GAN' if use_vae else 'None (pixel space)'}")
+    # 决定VAE类型
+    use_vqgan = args.use_vqgan and not args.no_vqgan
+    print(f"🔧 Decoder VAE: {'VQ-GAN' if use_vqgan else 'NullVQGanVAE (pixel space)'}")
 
     decoder = Decoder(
         unet=unet,
         clip=clip,
-        vae=decoder_vae,
+        vae=vae,  # 总是传递vae（VQGanVAE或NullVQGanVAE）
         image_sizes=(args.image_size,),
         timesteps=args.timesteps,
         sample_timesteps=sample_timesteps,
